@@ -5,6 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
+from label_postings import KEYWORDS, label_text  # noqa: E402
 from split_dataset import REQUIRED_FIELDS, load_jsonl, split_dataset  # noqa: E402
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -65,3 +66,26 @@ def test_split_files_are_disjoint():
     raw_ids = {r["posting_id"] for r in load_jsonl(DATA_DIR / "raw.jsonl")}
     assert not train_ids & test_ids
     assert train_ids | test_ids == raw_ids
+
+
+def test_label_text_matches_keywords_case_insensitively():
+    labels = label_text("We need PYTHON, docker, and Machine Learning experience.")
+    assert labels == ["Python", "Docker", "machine learning"]
+
+
+def test_label_text_uses_word_boundaries():
+    # "Go" must not match inside "Google", and "Java" must not match "JavaScript".
+    assert label_text("Work at Google on JavaScript apps.") == ["JavaScript"]
+
+
+def test_label_text_returns_empty_for_no_match():
+    assert label_text("A posting with no listed technologies.") == []
+
+
+def test_every_record_has_labels_from_curated_list():
+    for name in ("raw.jsonl", "train.jsonl", "test.jsonl"):
+        for record in load_jsonl(DATA_DIR / name):
+            assert isinstance(record["labels"], list)
+            for label in record["labels"]:
+                assert isinstance(label, str)
+                assert label in KEYWORDS, f"{label!r} is not in the curated list"
